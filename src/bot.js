@@ -1,78 +1,50 @@
 require("dotenv").config();
-const { Client, GatewayIntentBits, EmbedBuilder } = require("discord.js");
+const { Client, GatewayIntentBits } = require("discord.js");
+const eventHandler = require("./handlers/eventHandler");
+const config = require("./config");
 
 class DiscordBot {
-  constructor(token) {
-    this.client = new Client({
-      intents: [
-        GatewayIntentBits.Guilds,
-        GatewayIntentBits.GuildMembers,
-      ],
-    });
-    this.token = token;
-  }
+    constructor() {
+        this.client = new Client({
+            intents: [
+                GatewayIntentBits.Guilds,
+                GatewayIntentBits.GuildMembers,
+                GatewayIntentBits.GuildMessages,
+                GatewayIntentBits.MessageContent,
+            ],
+        });
 
-  loadEvents() {
-    // Evento quando o bot está pronto
-    this.client.once("ready", () => {
-      console.log(`🤖 Bot está online como ${this.client.user.tag}`);
-    });
+        // Armazenar os comandos
+        this.client.commands = new Map();
+    }
 
-    // Evento quando um novo usuário entra
-    this.client.on("guildMemberAdd", async (member) => {
-        const roleId = "1337204793189470288"; // 🔹 Substitua pelo ID do cargo
+    start() {
+        // Carregar eventos
+        eventHandler(this.client);
+
+        // Adicionar o listener para 'messageCreate' diretamente aqui
+        this.client.on("messageCreate", async message => {
+            if (!message.content.startsWith("!") || message.author.bot) return;
         
-        const role = member.guild.roles.cache.get(roleId);
-      
-        if (role) {
-          try {
-            await member.roles.add(role);
-            console.log(`✅ Cargo "${role.name}" adicionado a ${member.user.tag}`);
-          } catch (error) {
-            console.error(`❌ Erro ao adicionar cargo:`, error);
-          }
-        } else {
-          console.log(`⚠️ Cargo com ID "${roleId}" não encontrado. Verifique se o bot tem permissão.`);
-        }
-      });
-
-      this.client.on("guildMemberAdd", async (member) => {
-        const logChannelId = "1337209456018194452"; // 🔹 Substitua pelo ID do canal de logs
-        const logChannel = member.guild.channels.cache.get(logChannelId);
-      
-        if (logChannel) {
-          const embed = new EmbedBuilder()
-            .setColor("#00FF00")
-            .setTitle("🟢 Novo Membro Entrou")
-            .setDescription(`📌 **Usuário:** ${member.user.tag} \n🆔 **ID:** ${member.id} \n📅 **Entrou em:** <t:${Math.floor(Date.now() / 1000)}:F>`)
-            .setThumbnail(member.user.displayAvatarURL({ dynamic: true }))
-            .setFooter({ text: `Servidor: ${member.guild.name}`, iconURL: member.guild.iconURL() });
-      
-          logChannel.send({ embeds: [embed] });
-        }
-      });
-      
-      this.client.on("guildMemberRemove", async (member) => {
-        const logChannelId = "1337209456018194452"; // 🔹 Substitua pelo ID do canal de logs
-        const logChannel = member.guild.channels.cache.get(logChannelId);
-      
-        if (logChannel) {
-          const embed = new EmbedBuilder()
-            .setColor("#FF0000")
-            .setTitle("🔴 Membro Saiu")
-            .setDescription(`📌 **Usuário:** ${member.user.tag} \n🆔 **ID:** ${member.id} \n📅 **Saiu em:** <t:${Math.floor(Date.now() / 1000)}:F>`)
-            .setThumbnail(member.user.displayAvatarURL({ dynamic: true }))
-            .setFooter({ text: `Servidor: ${member.guild.name}`, iconURL: member.guild.iconURL() });
-      
-          logChannel.send({ embeds: [embed] });
-        }
-      });
-  }
-
-  start() {
-    this.loadEvents();
-    this.client.login(this.token);
-  }
+            const args = message.content.slice(1).trim().split(/ +/);
+            const commandName = args.shift().toLowerCase();
+        
+            const command = this.client.commands.get(commandName);
+            if (!command) {
+                console.log("⚠️ Comando não encontrado.");
+                return;
+            }
+        
+            try {
+                await command.execute(message, args, this.client);
+            } catch (error) {
+                console.error(`❌ Erro ao executar o comando ${commandName}:`, error);
+            }
+        });
+        
+        // Logar o bot
+        this.client.login(config.token);
+    }
 }
 
 module.exports = DiscordBot;
